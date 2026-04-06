@@ -1,11 +1,24 @@
 from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.staticfiles import StaticFiles
 import torch
 from torchvision import transforms
 from PIL import Image
 import pickle
 import io
+import os
+import random
 
 app = FastAPI()
+
+# -----------------------------
+# DATASET PATH (LOCAL + RENDER)
+# -----------------------------
+DATASET_PATH = "dataset"
+
+# -----------------------------
+# SERVE IMAGES
+# -----------------------------
+app.mount("/images", StaticFiles(directory=DATASET_PATH), name="images")
 
 # -----------------------------
 # DEVICE
@@ -51,7 +64,7 @@ def predict_image(image_bytes):
 # -----------------------------
 @app.get("/")
 def home():
-    return {"message": "Fashion API is running 🚀"}
+    return {"message": "Fashion API running 🚀"}
 
 # -----------------------------
 # MAIN API
@@ -60,16 +73,39 @@ def home():
 async def predict(file: UploadFile = File(...), brand: str = Form(default=None)):
     try:
         contents = await file.read()
-
         idx = predict_image(contents)
 
         if idx >= len(classes):
-            return {"error": f"Index {idx} out of range"}
+            return {"error": "Invalid prediction index"}
 
         category = classes[idx]
 
-        # TEMP: no dataset (for deployment)
-        final_urls = []
+        # -----------------------------
+        # FIND MATCHING FOLDER
+        # -----------------------------
+        category_folder = category.lower().replace(" ", "_")
+
+        folder_path = os.path.join(DATASET_PATH, category_folder)
+
+        if not os.path.exists(folder_path):
+            return {
+                "category": category,
+                "recommendations": []
+            }
+
+        images = os.listdir(folder_path)
+
+        # optional brand filter
+        if brand:
+            images = [img for img in images if brand.lower() in img.lower()]
+
+        # random 5 images
+        selected = random.sample(images, min(5, len(images)))
+
+        # create URLs
+        final_urls = [
+            f"/images/{category_folder}/{img}" for img in selected
+        ]
 
         return {
             "category": category,
