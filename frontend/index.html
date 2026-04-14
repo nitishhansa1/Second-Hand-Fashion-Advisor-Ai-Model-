@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Fashion Advisor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/frontend/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Fashion Advisor AI</h1>
+            <p>Upload an item to predict its category, get resale estimates, and find your perfect size.</p>
+        </header>
+
+        <div class="main-content">
+            <div class="left-panel">
+                <div class="upload-section" id="upload-box">
+                    <input type="file" id="file-input" accept="image/*" hidden>
+                    <div class="upload-content">
+                        <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        <p>Click or drag an image here</p>
+                    </div>
+                    <img id="image-preview" src="" alt="Preview" hidden>
+                </div>
+
+                <div class="action-section">
+                    <button id="analyze-btn" disabled>Analyze Item</button>
+                    <div id="loading-spinner" class="spinner hidden"></div>
+                </div>
+
+                <div class="input-forms hidden" id="forms-section">
+                    <div class="form-group">
+                        <h3>Item Details</h3>
+                        <label for="brand">Original Brand / Target Brand</label>
+                        <select id="brand">
+                            <option value="Zara">Zara</option>
+                            <option value="H&M">H&M</option>
+                            <option value="Levi's">Levi's</option>
+                            <option value="Gucci">Gucci</option>
+                        </select>
+
+                        <label for="condition">Condition</label>
+                        <select id="condition">
+                            <option value="Like-New">Like-New</option>
+                            <option value="Good" selected>Good</option>
+                            <option value="Fair">Fair</option>
+                            <option value="Poor">Poor</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group measurements">
+                        <h3>Your Measurements (cm)</h3>
+                        <div class="grid-2">
+                            <div>
+                                <label for="chest">Chest/Bust</label>
+                                <input type="number" id="chest" placeholder="e.g. 100">
+                            </div>
+                            <div>
+                                <label for="waist">Waist</label>
+                                <input type="number" id="waist" placeholder="e.g. 88">
+                            </div>
+                            <div>
+                                <label for="hip">Hip</label>
+                                <input type="number" id="hip" placeholder="e.g. 95">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="get-insights-btn" class="secondary-btn">Get AI Insights</button>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="results-dashboard hidden" id="results-dashboard">
+                    <h2>AI Analysis</h2>
+                    
+                    <div class="card result-card">
+                        <span class="label">Predicted Category</span>
+                        <h3 id="res-category">-</h3>
+                        <p class="subtext" id="res-confidence"></p>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="card insight-card">
+                            <span class="label">Fair Resale Value</span>
+                            <h3 id="res-price">-</h3>
+                            <p class="subtext" id="res-tier"></p>
+                        </div>
+                        <div class="card insight-card">
+                            <span class="label">Recommended Size</span>
+                            <h3 id="res-size">-</h3>
+                            <p class="subtext">Based on measurements</p>
+                        </div>
+                    </div>
+
+                    <div class="recommendations">
+                        <h3>Similar Styles</h3>
+                        <div class="image-gallery" id="recommendations-container">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="/frontend/script.js"></script>
+</body>
+</html>
