@@ -388,10 +388,34 @@ class ResaleRequest(BaseModel):
     category: str
     condition: str = "Good"
 
+def map_apparel_category(predicted_category: str) -> str:
+    cat = predicted_category.lower()
+    if any(x in cat for x in ["tshirt", "top", "t-shirt"]):
+        return "tshirts"
+    if "shirt" in cat and "tshirt" not in cat and "sweat" not in cat:
+        return "shirt"
+    if any(x in cat for x in ["jean", "jeggings"]):
+        return "jeans"
+    if "dress" in cat or "gown" in cat:
+        return "dresses"
+    if any(x in cat for x in ["jacket", "coat", "blazer", "shrug"]):
+        return "leather jacket" 
+    if any(x in cat for x in ["handbag", "clutch", "bag", "backpack", "pouch"]):
+        return "handbags"
+    if any(x in cat for x in ["trouser", "pant", "short", "capri", "legging", "salwar", "churidar", "track"]):
+        return "jeans"
+    if any(x in cat for x in ["sweater", "sweatshirt", "hoodie", "pullover"]):
+        return "shirt"
+    if any(x in cat for x in ["shoe", "sandal", "heel", "flat", "bootie"]):
+        return "shoes"
+    return cat
+
 @app.post("/estimate-resale")
 def estimate_resale(request: ResaleRequest):
     brand_lower = request.brand.lower().replace(" ", "").replace("-", "")
-    category_lower = request.category.lower().replace(" ", "").replace("-", "")
+    
+    mapped_cat = map_apparel_category(request.category)
+    category_lower = mapped_cat.lower().replace(" ", "").replace("-", "")
 
     base_price = 0
     brand_tier = "Unknown"
@@ -446,7 +470,10 @@ class SizeRequest(BaseModel):
 @app.post("/translate-size")
 def translate_size(req: SizeRequest):
     user_measurements = {k: v for k, v in req.dict().items() if v is not None and k not in ["target_brand", "category"]}
-    category_lower = req.category.lower().replace(" ", "").replace("-", "")
+    
+    mapped_cat = map_apparel_category(req.category)
+    category_lower = mapped_cat.lower().replace(" ", "").replace("-", "")
+    
     target_brand_norm = req.target_brand.lower().replace(" ", "").replace("-", "")
 
     target_brand_key = next((k for k in brand_size_data if k.lower().replace(" ", "").replace("-", "") == target_brand_norm), None)
