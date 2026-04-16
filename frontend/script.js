@@ -4,17 +4,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const imagePreview = document.getElementById('image-preview');
     const analyzeBtn = document.getElementById('analyze-btn');
     const getInsightsBtn = document.getElementById('get-insights-btn');
-    const spinner = document.getElementById('loading-spinner');
     
-    // Sections
+    // Elements
     const formsSection = document.getElementById('forms-section');
     const resultsDashboard = document.getElementById('results-dashboard');
     const recommendationsContainer = document.getElementById('recommendations-container');
+    const toastContainer = document.getElementById('toast-container');
+
+    // Result Nodes
+    const resCategory = document.getElementById('res-category');
+    const resConfidence = document.getElementById('res-confidence');
+    const resPrice = document.getElementById('res-price');
+    const resTier = document.getElementById('res-tier');
+    const resSize = document.getElementById('res-size');
 
     let currentCategory = "";
     let selectedFile = null;
 
-    // Drag and Drop Logic
+    // --- Toast Notifications ---
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerText = message;
+        toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateY(100%)';
+            toast.style.transition = 'all 0.3s ease';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // --- Drag and Drop Logic ---
     uploadBox.addEventListener('click', () => fileInput.click());
     
     uploadBox.addEventListener('dragover', (e) => {
@@ -47,16 +69,50 @@ document.addEventListener('DOMContentLoaded', () => {
             imagePreview.src = e.target.result;
             imagePreview.hidden = false;
             analyzeBtn.disabled = false;
+            analyzeBtn.innerText = "Analyze Item";
         };
         reader.readAsDataURL(file);
     }
 
-    // Step 1: Predict Category
+    // --- Helper: Skeleton State ---
+    function setSkeletonState(nodes, isSkeleton) {
+        nodes.forEach(node => {
+            if (!node) return;
+            if (isSkeleton) {
+                node.classList.add('skeleton');
+                if (node.tagName !== 'DIV') {
+                    // Cache old text if not already cached
+                    if (!node.dataset.originalText) {
+                        node.dataset.originalText = node.innerText;
+                    }
+                    node.innerText = "---";
+                }
+            } else {
+                node.classList.remove('skeleton');
+            }
+        });
+    }
+
+    // --- Step 1: Predict ---
     analyzeBtn.addEventListener('click', async () => {
         if (!selectedFile) return;
 
         analyzeBtn.disabled = true;
-        spinner.classList.remove('hidden');
+        analyzeBtn.innerText = "Analyzing...";
+
+        // Show dashboard with skeletons immediately for perceived performance
+        formsSection.classList.remove('hidden');
+        resultsDashboard.classList.remove('hidden');
+
+        // Set predict skeletons
+        setSkeletonState([resCategory], true);
+        resConfidence.innerText = "Running AI analysis...";
+
+        // Set predict image skeletons
+        recommendationsContainer.innerHTML = '';
+        for(let i=0; i<4; i++) {
+            recommendationsContainer.innerHTML += `<div class="img-container skeleton"></div>`;
+        }
 
         const formData = new FormData();
         formData.append('file', selectedFile);
@@ -67,44 +123,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData
             });
 
-            if (!res.ok) throw new Error('Prediction failed');
+            if (!res.ok) throw new Error('Prediction API failed');
             
             const data = await res.json();
             currentCategory = data.category;
             
-            // Show base results
-            document.getElementById('res-category').innerText = currentCategory;
-            document.getElementById('res-confidence').innerText = 'AI Detection Confirmed';
+            // Remove skeletons & apply text
+            setSkeletonState([resCategory], false);
+            resCategory.innerText = currentCategory;
+            resConfidence.innerText = 'Detection Confirmed';
             
-            // Show recommendations
+            // Render similar images
             recommendationsContainer.innerHTML = '';
             if (data.recommendations && data.recommendations.length > 0) {
                 data.recommendations.forEach(url => {
                     const div = document.createElement('div');
                     div.className = 'img-container';
-                    div.innerHTML = `<img src="${url}" alt="Similar item" loading="lazy">`;
+                    div.innerHTML = `<img src="${url}" alt="Similar style" loading="lazy">`;
                     recommendationsContainer.appendChild(div);
                 });
             } else {
-                recommendationsContainer.innerHTML = '<p class="subtext">No similar items found in dataset.</p>';
+                recommendationsContainer.innerHTML = '<p class="subtext">No highly similar matches found.</p>';
             }
 
-            // Reveal next steps
-            formsSection.classList.remove('hidden');
-            resultsDashboard.classList.remove('hidden');
-
-            // Optionally, automatically fetch insights right away using defaults
+            // Move right into calculating pricing/sizing
             fetchInsights();
 
         } catch (error) {
-            alert('Error analyzing image: ' + error.message);
-        } finally {
+            showToast('Error analyzing image: ' + error.message);
             analyzeBtn.disabled = false;
-            spinner.classList.add('hidden');
+            analyzeBtn.innerText = "Retry Analysis";
         }
     });
 
-    // Step 2: Get Insights
+    // --- Step 2: Insights ---
     getInsightsBtn.addEventListener('click', fetchInsights);
 
     async function fetchInsights() {
@@ -118,7 +170,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const hip = parseFloat(document.getElementById('hip').value);
 
         getInsightsBtn.disabled = true;
-        getInsightsBtn.innerText = "Analyzing...";
+        getInsightsBtn.innerText = "Calculating...";
+
+        setSkeletonState([resPrice, resSize], true);
+        resTier.innerText = "Evaluating market data...";
+        document.getElementById('res-size-text').innerText = "Comparing brand geometries...";
 
         try {
             // Fetch Resale Value
@@ -128,12 +184,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ brand, category: currentCategory, condition })
             });
             const resaleData = await resaleRes.json();
+            
+            setSkeletonState([resPrice], false);
             if (resaleData.error) {
-                document.getElementById('res-price').innerText = 'N/A';
-                document.getElementById('res-tier').innerText = resaleData.error;
+                resPrice.innerText = 'N/A';
+                resTier.innerText = resaleData.error;
             } else {
-                document.getElementById('res-price').innerText = `$${resaleData.min_price} - $${resaleData.max_price}`;
-                document.getElementById('res-tier').innerText = `Est. Value (${resaleData.tier})`;
+                // Formatting values cleanly
+                resPrice.innerText = `$${resaleData.min_price} - $${resaleData.max_price}`;
+                resTier.innerText = `Condition: ${condition} • ${resaleData.tier}`;
             }
 
             // Fetch Size Translation
@@ -142,8 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isNaN(waist)) sizePayload.waist = waist;
             if (!isNaN(hip)) sizePayload.hip = hip;
 
-            // Only attempt sizing if we have some measurements to avoid bad requests if you need them.
-            // But the backend handles missing, so let's send it.
             const sizeRes = await fetch('/translate-size', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -151,18 +208,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const sizeData = await sizeRes.json();
             
+            setSkeletonState([resSize], false);
             if (sizeData.error) {
-                document.getElementById('res-size').innerText = 'N/A';
+                resSize.innerText = 'N/A';
+                document.getElementById('res-size-text').innerText = "Provide measurements to unlock";
             } else {
-                document.getElementById('res-size').innerText = sizeData.recommended_size;
+                resSize.innerText = sizeData.recommended_size;
+                document.getElementById('res-size-text').innerText = `Best fit for ${brand}`;
             }
 
         } catch (error) {
             console.error(error);
-            alert('Error getting insights: ' + error.message);
+            showToast('Insight calculation failed: ' + error.message);
         } finally {
             getInsightsBtn.disabled = false;
-            getInsightsBtn.innerText = "Get AI Insights";
+            getInsightsBtn.innerText = "Recalculate Insights";
         }
     }
 });
