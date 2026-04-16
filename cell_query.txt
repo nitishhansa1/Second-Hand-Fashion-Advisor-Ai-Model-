@@ -1,0 +1,10 @@
+--- CELL 70 ---
+classes = ["T-shirt", "Shirt", "Dress", ...]
+
+--- CELL 71 ---
+import pickle
+
+with open("/content/drive/MyDrive/classes.pkl", "wb") as f:
+    pickle.dump(classes, f)
+
+print("✅ classes.pkl saved")
