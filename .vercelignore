@@ -1,0 +1,13 @@
+archive/
+dataset/
+__pycache__/
+*.ipynb
+faiss.index
+evaluation_results.txt
+*.pyc
+tests/
+test_*.py
+cells.txt
+cells_to_delete.md
+cell_query.txt
+*.md
