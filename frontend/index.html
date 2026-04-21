@@ -1,17 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark" style="color-scheme: dark;">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Fashion Advisor</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/frontend/styles.css">
+    <meta name="color-scheme" content="dark">
+    <title>Fashion Advisor AI — Smart Style Intelligence</title>
+    <meta name="description" content="Upload any fashion item to instantly classify it, get fair resale pricing, cross-brand sizing, and visually similar recommendations powered by AI.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/frontend/styles.css?v=5">
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Fashion Advisor AI</h1>
-            <p>Upload an item to predict its category, get fair resale estimates, and cross-brand sizing.</p>
+            <p>Upload an item to predict its category, get fair resale estimates, and cross-brand sizing — all powered by deep learning.</p>
         </header>
 
         <div class="main-content">
@@ -19,11 +23,12 @@
             <div class="left-panel">
                 <div class="upload-section" id="upload-box">
                     <input type="file" id="file-input" accept="image/*" hidden>
-                    <div class="upload-content">
+                    <div class="upload-content" id="upload-content">
                         <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                         </svg>
                         <p>Click or drag an image here</p>
+                        <span style="font-size:0.78rem; color:var(--text-muted); margin-top:8px;">JPG, PNG, WebP up to 10MB</span>
                     </div>
                     <img id="image-preview" src="" alt="Preview" hidden>
                 </div>
@@ -35,7 +40,7 @@
                 <div class="input-forms card-glass hidden stagger-1" id="forms-section">
                     <div class="form-group">
                         <h3>Item Details</h3>
-                        <label for="brand">Compare sizing to</label>
+                        <label for="brand">Compare Sizing To</label>
                         <select id="brand">
                             <option value="Zara">Zara</option>
                             <option value="H&M">H&M</option>
@@ -70,25 +75,33 @@
                         </div>
                     </div>
 
-                    <button id="get-insights-btn" class="secondary-btn">Recalculate Insights</button>
+                    <div style="padding: 0 28px 24px;">
+                        <button id="get-insights-btn" class="secondary-btn">Recalculate Insights</button>
+                    </div>
                 </div>
             </div>
 
             <!-- Right Panel -->
             <div class="right-panel">
                 <div class="results-dashboard hidden" id="results-dashboard">
-                    
-                    <div class="card card-glass result-card stagger-2" id="category-card">
-                        <span class="label">Predicted Category</span>
-                        <h3 id="res-category" class="skeleton skeleton-title">----</h3>
-                        <p class="subtext" id="res-confidence">Detecting visual features...</p>
+
+                    <!-- Top-5 Prediction Cards -->
+                    <div class="predictions-section stagger-2" id="predictions-section">
+                        <div class="section-header">
+                            <h3>AI Predictions</h3>
+                            <span class="section-badge" id="model-badge">Top 5 Candidates</span>
+                        </div>
+                        <div class="prediction-cards" id="prediction-cards">
+                            <!-- JS injects prediction cards here -->
+                        </div>
                     </div>
 
+                    <!-- Insight Cards Row -->
                     <div class="grid-2 stagger-3">
                         <div class="card card-glass insight-card">
                             <span class="label">Resale Estimate</span>
                             <h3 id="res-price" class="skeleton skeleton-title">--</h3>
-                            <p class="subtext" id="res-tier">Calculating value...</p>
+                            <p class="subtext" id="res-tier">Calculating value…</p>
                         </div>
                         <div class="card card-glass insight-card">
                             <span class="label">Suggested Size</span>
@@ -97,6 +110,7 @@
                         </div>
                     </div>
 
+                    <!-- Recommendations -->
                     <div class="recommendations stagger-4">
                         <h3>Similar Styles</h3>
                         <div class="image-gallery" id="recommendations-container">
@@ -107,8 +121,8 @@
             </div>
         </div>
     </div>
-    
+
     <div class="toast-container" id="toast-container"></div>
-    <script src="/frontend/script.js"></script>
+    <script src="/frontend/script.js?v=5"></script>
 </body>
 </html>

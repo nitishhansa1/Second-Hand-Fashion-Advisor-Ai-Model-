@@ -12,6 +12,8 @@ import os
 import random
 from collections import defaultdict
 import torchvision.models as models
+import faiss
+import numpy as np
 
 app = FastAPI()
 
@@ -57,49 +59,94 @@ device = torch.device("cpu")
 # -----------------------------
 # LOAD FILES & MODEL
 # -----------------------------
-state = torch.load("model.pth", map_location=device, weights_only=False)
+try:
+    state = torch.load("model_with_classes.pth", map_location=device, weights_only=False)
+    if not isinstance(state, dict):
+        model = state
+        # Inferred from common ResNet implementations
+        num_classes = 142 
+        # Identify classes if possible, else use classes.pkl
+        if hasattr(model, "classes"):
+            classes = model.classes
+        else:
+            with open("classes.pkl", "rb") as f:
+                classes = pickle.load(f)
+    else:
+        # Legacy state_dict loading
+        model_state = state.get("model_state_dict", state.get("model_state", state))
+        if "class_names" in state:
+            classes = state["class_names"]
+        elif "classes" in state:
+            classes = state["classes"]
+        else:
+            with open("classes.pkl", "rb") as f:
+                classes = pickle.load(f)
+        
+        num_classes = model_state["fc.bias"].shape[0] if "fc.bias" in model_state else len(classes)
+        model = models.resnet18(weights=None)
+        model.fc = torch.nn.Linear(model.fc.in_features, num_classes)
+        model.load_state_dict(model_state)
+    
+    classes = list(classes)
+    model.to(device)
+    model.eval()
+    print(f"[INFO] Model loaded with {len(classes)} classes")
+except Exception as e:
+    print(f"[ERROR] Failed to load model: {e}")
+    raise e
+
+# -----------------------------
+# FEATURE EXTRACTOR (for FAISS)
+# -----------------------------
+# Create a feature extractor by removing the last fully connected layer
+feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+feature_extractor.to(device)
+feature_extractor.eval()
+
+# -----------------------------
+# LOAD FAISS & IMAGE PATHS
+# -----------------------------
+try:
+    if os.path.exists("faiss.index"):
+        faiss_index = faiss.read_index("faiss.index")
+        print(f"[INFO] FAISS index loaded with {faiss_index.ntotal} items")
+    else:
+        print("[WARN] faiss.index not found. Similarity search disabled.")
+        faiss_index = None
+except Exception as e:
+    print(f"[WARN] Failed to load faiss.index: {e}")
+    faiss_index = None
 
 try:
     with open("image_paths.pkl", "rb") as f:
-        image_paths = pickle.load(f)
+        raw_image_paths = pickle.load(f)
+    
+    # Normalize paths: map /content/fashion_data/... to local layout
+    # Local: archive/categorized_images/<Category>/<id>.jpg
+    image_paths = []
+    for p in raw_image_paths:
+        p_clean = p.replace("\\", "/")
+        parts = p_clean.split("/")
+        if len(parts) >= 2:
+            # Keep Category/filename.jpg
+            image_paths.append(f"{parts[-2]}/{parts[-1]}")
+        else:
+            image_paths.append(p_clean)
+    
+    print(f"[INFO] {len(image_paths)} image paths normalized")
 except Exception as e:
     print(f"[WARN] Failed to load image_paths.pkl: {e}")
     image_paths = []
 
-
-# Look for classes in the state dict or fallback to classes.pkl
-loaded_classes = state.get("classes") if isinstance(state, dict) and "classes" in state else None
-if loaded_classes is None:
-    with open("classes.pkl", "rb") as f:
-        loaded_classes = pickle.load(f)
-
-classes = list(loaded_classes)
-model_state = state.get("model_state", state) if isinstance(state, dict) else state.state_dict()
-
-# Get FC size to accommodate potentially mismatched classes.pkl
-num_classes = model_state["fc.bias"].shape[0]
-
-# Pad classes if the model has more outputs than classes in pkl
-if num_classes > len(classes):
-    classes += [f"UnknownClass_{i}" for i in range(len(classes), num_classes)]
-
-if not isinstance(state, dict):
-    model = state
-else:
-    model = models.resnet18(weights=None)
-    model.fc = torch.nn.Linear(model.fc.in_features, num_classes)
-    model.load_state_dict(model_state)
-
-model.to(device)
-model.eval()
-
 # -----------------------------
 # TRANSFORM
 # -----------------------------
+# Transform: Must exactly match training preprocessing (excluding augmentations)
+# ImageNet normalization is REQUIRED — model was trained with normalized inputs
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
 
@@ -192,22 +239,77 @@ print(f"[INFO] {len(classes)} classes | {cats_with_images} with images | {mapped
 # -----------------------------
 # PREDICTION FUNCTION
 # -----------------------------
-def predict_image(image_bytes):
+def get_embedding(image_bytes):
+    """Generate a feature vector for an image."""
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    image = transform(image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        features = feature_extractor(image)
+    return features.view(-1).cpu().numpy()
+
+
+def predict_image(image_bytes, top_k=3):
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     image = transform(image).unsqueeze(0).to(device)
 
     with torch.no_grad():
         output = model(image)
+        probabilities = torch.nn.functional.softmax(output[0], dim=0)
+        top_probs, top_indices = torch.topk(probabilities, top_k)
+    
+    return top_indices.tolist(), top_probs.tolist()
 
-    _, pred = torch.max(output, 1)
-    return pred.item()
 
-
-def get_recommendations(category: str, brand: str = None, count: int = 4):
+def get_recommendations(category: str, image_bytes: bytes = None, brand: str = None, count: int = 4):
     """
     Get image recommendations for a predicted category.
-    Returns up to `count` image URLs.
+    If image_bytes is provided and FAISS is loaded, uses visual similarity.
+    Otherwise fallbacks to random sampling within category.
     """
+    results = []
+
+    # 1. ATTEMPT FAISS SIMILARITY SEARCH
+    if faiss_index is not None and image_paths and image_bytes:
+        try:
+            query_emb = get_embedding(image_bytes).reshape(1, -1)
+            # Search for more images than needed to allow filtering by category
+            top_k = count * 10 
+            distances, indices = faiss_index.search(query_emb, top_k)
+
+            for idx in indices[0]:
+                if idx < 0 or idx >= len(image_paths):
+                    continue
+                
+                # Path is "Category/filename.jpg"
+                full_path = image_paths[idx]
+                item_category = full_path.split("/")[0]
+
+                # Heuristic: Prioritize items in the same or similar category
+                # We normalize them to compare
+                if normalize_name(item_category) == normalize_name(category):
+                    results.append(f"/images/{full_path}")
+                
+                if len(results) >= count:
+                    break
+            
+            # If not enough similar items in same category, add any similar items
+            if len(results) < count:
+                for idx in indices[0]:
+                    full_path = image_paths[idx]
+                    url = f"/images/{full_path}"
+                    if url not in results:
+                        results.append(url)
+                    if len(results) >= count:
+                        break
+            
+            if results:
+                print(f"[INFO] Found {len(results)} recommendations via FAISS")
+                return results
+                
+        except Exception as e:
+            print(f"[WARN] FAISS search failed: {e}")
+
+    # 2. FALLBACK: RANDOM SAMPLING FROM CATEGORY_IMAGE_MAP
     images = category_image_map.get(category, [])
 
     if not images:
@@ -280,20 +382,35 @@ def list_categories():
 async def predict(file: UploadFile = File(...), brand: str = Form(default=None)):
     try:
         contents = await file.read()
-        idx = predict_image(contents)
+        top_indices, top_probs = predict_image(contents, top_k=5)
 
-        if idx >= len(classes):
+        top_predictions = []
+        for idx, prob in zip(top_indices, top_probs):
+            if idx < len(classes):
+                top_predictions.append({
+                    "category": classes[idx],
+                    "confidence": float(prob),
+                    "confidence_index": idx
+                })
+
+        if not top_predictions:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid prediction index: {idx} (max: {len(classes) - 1})"
+                detail="Invalid prediction indices."
             )
 
-        category = classes[idx]
-        recommendations = get_recommendations(category, brand=brand, count=4)
+        best_pred = top_predictions[0]
+        category = best_pred["category"]
+        confidence = best_pred["confidence"]
+        idx = best_pred["confidence_index"]
+
+        recommendations = get_recommendations(category, image_bytes=contents, brand=brand, count=4)
 
         return {
             "category": category,
+            "confidence": round(confidence, 4),
             "confidence_index": idx,
+            "top_predictions": top_predictions,
             "total_recommendations": len(recommendations),
             "recommendations": recommendations,
         }
@@ -302,6 +419,132 @@ async def predict(file: UploadFile = File(...), brand: str = Form(default=None))
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+
+@app.post("/recommendations")
+async def get_recommends(
+    category: str = Form(...),
+    brand: str = Form(default=None),
+    file: UploadFile = File(None)
+):
+    try:
+        contents = await file.read() if file else None
+        recommendations = get_recommendations(category, image_bytes=contents, brand=brand, count=4)
+        return {"recommendations": recommendations}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Recommendations failed: {str(e)}")
+
+
+# -----------------------------
+# FEEDBACK / CORRECTION SYSTEM
+# -----------------------------
+import json
+import hashlib
+from datetime import datetime
+
+FEEDBACK_DIR = "feedback_data"
+FEEDBACK_LOG = os.path.join(FEEDBACK_DIR, "corrections.json")
+FEEDBACK_IMAGES_DIR = os.path.join(FEEDBACK_DIR, "images")
+
+# Create feedback directories
+os.makedirs(FEEDBACK_IMAGES_DIR, exist_ok=True)
+
+# Load existing corrections
+if os.path.exists(FEEDBACK_LOG):
+    with open(FEEDBACK_LOG, "r") as f:
+        feedback_corrections = json.load(f)
+else:
+    feedback_corrections = []
+
+
+def save_feedback_log():
+    """Persist corrections to disk."""
+    with open(FEEDBACK_LOG, "w") as f:
+        json.dump(feedback_corrections, f, indent=2)
+
+
+@app.post("/feedback")
+async def submit_feedback(
+    file: UploadFile = File(...),
+    original_category: str = Form(...),
+    corrected_category: str = Form(...),
+    original_confidence: float = Form(default=0.0),
+):
+    """
+    Save a user correction: the model predicted original_category 
+    but the user says it should be corrected_category.
+    The image is saved for future retraining.
+    """
+    try:
+        contents = await file.read()
+
+        # Generate a hash for deduplication
+        img_hash = hashlib.md5(contents).hexdigest()
+
+        # Save the image for future retraining
+        img_filename = f"{img_hash}.jpg"
+        img_path = os.path.join(FEEDBACK_IMAGES_DIR, img_filename)
+        if not os.path.exists(img_path):
+            with open(img_path, "wb") as f:
+                f.write(contents)
+
+        # Build correction record
+        correction = {
+            "timestamp": datetime.now().isoformat(),
+            "image_hash": img_hash,
+            "image_file": img_filename,
+            "original_prediction": original_category,
+            "corrected_label": corrected_category,
+            "original_confidence": round(original_confidence, 4),
+        }
+
+        # Avoid duplicate corrections for the same image+correction
+        existing = [
+            c for c in feedback_corrections
+            if c["image_hash"] == img_hash and c["corrected_label"] == corrected_category
+        ]
+        if not existing:
+            feedback_corrections.append(correction)
+            save_feedback_log()
+            print(f"[FEEDBACK] Saved: {original_category} → {corrected_category} ({img_hash[:8]})")
+        else:
+            print(f"[FEEDBACK] Duplicate skipped: {img_hash[:8]}")
+
+        return {
+            "status": "saved",
+            "total_corrections": len(feedback_corrections),
+            "correction": correction,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Feedback save failed: {str(e)}")
+
+
+@app.get("/feedback/stats")
+def feedback_stats():
+    """View correction statistics."""
+    from collections import Counter
+
+    if not feedback_corrections:
+        return {"total": 0, "message": "No corrections yet."}
+
+    # Count how often each original → corrected pair occurs
+    pair_counts = Counter()
+    original_counts = Counter()
+    corrected_counts = Counter()
+
+    for c in feedback_corrections:
+        pair = f"{c['original_prediction']} → {c['corrected_label']}"
+        pair_counts[pair] += 1
+        original_counts[c["original_prediction"]] += 1
+        corrected_counts[c["corrected_label"]] += 1
+
+    return {
+        "total_corrections": len(feedback_corrections),
+        "most_common_errors": dict(pair_counts.most_common(10)),
+        "most_misclassified": dict(original_counts.most_common(10)),
+        "most_corrected_to": dict(corrected_counts.most_common(10)),
+    }
 
 
 # -----------------------------
