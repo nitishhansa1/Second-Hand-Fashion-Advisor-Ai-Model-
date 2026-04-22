@@ -1,6 +1,11 @@
 {
   "version": 2,
-  "buildCommand": null,
+  "builds": [
+    {
+      "src": "frontend/**",
+      "use": "@vercel/static"
+    }
+  ],
   "outputDirectory": ".",
   "rewrites": [
     {
