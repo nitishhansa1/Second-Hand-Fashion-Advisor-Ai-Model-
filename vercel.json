@@ -1,15 +1,41 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "main.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
+      "source": "/images/(.*)",
+      "destination": "https://fashion-api-frtk.onrender.com/images/$1"
+    },
     {
-      "src": "/(.*)",
-      "dest": "main.py"
+      "source": "/predict",
+      "destination": "https://fashion-api-frtk.onrender.com/predict"
+    },
+    {
+      "source": "/recommendations",
+      "destination": "https://fashion-api-frtk.onrender.com/recommendations"
+    },
+    {
+      "source": "/feedback",
+      "destination": "https://fashion-api-frtk.onrender.com/feedback"
+    },
+    {
+      "source": "/feedback/stats",
+      "destination": "https://fashion-api-frtk.onrender.com/feedback/stats"
+    },
+    {
+      "source": "/estimate-resale",
+      "destination": "https://fashion-api-frtk.onrender.com/estimate-resale"
+    },
+    {
+      "source": "/translate-size",
+      "destination": "https://fashion-api-frtk.onrender.com/translate-size"
+    },
+    {
+      "source": "/frontend/(.*)",
+      "destination": "/frontend/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/frontend/index.html"
     }
   ]
 }

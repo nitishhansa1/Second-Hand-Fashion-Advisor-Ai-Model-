@@ -11,3 +11,7 @@ cells.txt
 cells_to_delete.md
 cell_query.txt
 *.md
+*.pth
+*.pkl
+main.py
+requirements.txt

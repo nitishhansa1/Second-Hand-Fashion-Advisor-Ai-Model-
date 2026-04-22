@@ -715,6 +715,9 @@ class SizeRequest(BaseModel):
 def translate_size(req: SizeRequest):
     user_measurements = {k: v for k, v in req.dict().items() if v is not None and k not in ["target_brand", "category"]}
     
+    if not user_measurements:
+        return {"error": "Measurements required for sizing."}
+    
     mapped_cat = map_apparel_category(req.category)
     category_lower = mapped_cat.lower().replace(" ", "").replace("-", "")
     

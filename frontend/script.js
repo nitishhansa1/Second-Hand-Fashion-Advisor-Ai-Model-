@@ -385,7 +385,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Size Translation
             const sizePayload = { target_brand: brand, category: currentCategory };
-            if (!isNaN(chest)) sizePayload.chest = chest;
+            if (!isNaN(chest)) {
+                sizePayload.chest = chest;
+                sizePayload.bust = chest; // Map to bust for dresses
+            }
             if (!isNaN(waist)) sizePayload.waist = waist;
             if (!isNaN(hip)) sizePayload.hip = hip;
 

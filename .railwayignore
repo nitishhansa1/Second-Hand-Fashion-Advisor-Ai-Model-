@@ -1,0 +1,11 @@
+archive/
+dataset/
+__pycache__/
+*.ipynb
+*.pyc
+tests/
+test_*.py
+cells.txt
+cells_to_delete.md
+cell_query.txt
+*.md
