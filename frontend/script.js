@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('file', selectedFile);
 
         try {
-            const res = await fetch('/predict', {
+            const res = await fetch('https://fashion-api-frtk.onrender.com/predict', {
                 method: 'POST',
                 body: formData
             });
@@ -229,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     div.style.animationDelay = `${i * 0.08}s`;
                     div.style.animation = `fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${0.1 + i * 0.08}s both`;
                     const img = document.createElement('img');
-                    img.src = url;
+                    img.src = url.startsWith('/') ? 'https://fashion-api-frtk.onrender.com' + url : url;
                     img.alt = `Similar to ${currentCategory}`;
                     img.loading = 'lazy';
                     img.onerror = function() {
@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 feedbackForm.append('corrected_category', newCategory);
                 feedbackForm.append('original_confidence', originalConfidence);
 
-                const fbRes = await fetch('/feedback', { method: 'POST', body: feedbackForm });
+                const fbRes = await fetch('https://fashion-api-frtk.onrender.com/feedback', { method: 'POST', body: feedbackForm });
                 const fbData = await fbRes.json();
                 if (fbData.status === 'saved') {
                     showToast(`✓ Correction saved (${fbData.total_corrections} total)`, 'success');
@@ -309,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('file', selectedFile);
                 formData.append('brand', document.getElementById('brand').value || '');
 
-                const res = await fetch('/predict', { method: 'POST', body: formData });
+                const res = await fetch('https://fashion-api-frtk.onrender.com/predict', { method: 'POST', body: formData });
                 const data = await res.json();
 
                 // Use recommendations from the response (they're based on visual similarity)
@@ -320,7 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         div.className = 'img-container';
                         div.style.animation = `fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) ${0.1 + i * 0.08}s both`;
                         const img = document.createElement('img');
-                        img.src = url;
+                        img.src = url.startsWith('/') ? 'https://fashion-api-frtk.onrender.com' + url : url;
                         img.alt = `Similar to ${currentCategory}`;
                         img.loading = 'lazy';
                         img.onerror = function() { this.parentElement.style.display = 'none'; };
@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // Resale Value
-            const resaleRes = await fetch('/estimate-resale', {
+            const resaleRes = await fetch('https://fashion-api-frtk.onrender.com/estimate-resale', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ brand, category: currentCategory, condition })
@@ -392,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isNaN(waist)) sizePayload.waist = waist;
             if (!isNaN(hip)) sizePayload.hip = hip;
 
-            const sizeRes = await fetch('/translate-size', {
+            const sizeRes = await fetch('https://fashion-api-frtk.onrender.com/translate-size', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(sizePayload)
