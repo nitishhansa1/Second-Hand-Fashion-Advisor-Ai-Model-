@@ -41,8 +41,9 @@ else:
 # -----------------------------
 # SERVE IMAGES & FRONTEND
 # -----------------------------
-if os.path.exists(DATASET_PATH):
-    app.mount("/images", StaticFiles(directory=DATASET_PATH), name="images")
+if not os.path.exists(DATASET_PATH):
+    os.makedirs(DATASET_PATH, exist_ok=True)
+app.mount("/images", StaticFiles(directory=DATASET_PATH), name="images")
 
 if not os.path.exists("frontend"):
     os.makedirs("frontend")
