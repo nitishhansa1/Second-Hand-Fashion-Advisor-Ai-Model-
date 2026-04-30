@@ -70,5 +70,5 @@ Because of GitHub's strict file limitations, if you clone this repo locally, ens
 ---
 
 <div align="center">
-  <i>Built with ❤️ for deep learning and sustainable second-hand fashion.</i>
+  <i>Built for deep learning and sustainable second-hand fashion.</i>
 </div>
