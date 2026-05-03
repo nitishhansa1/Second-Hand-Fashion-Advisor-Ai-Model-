@@ -12,8 +12,16 @@ import os
 import random
 from collections import defaultdict
 import torchvision.models as models
-import faiss
 import numpy as np
+
+try:
+    import faiss
+    FAISS_AVAILABLE = True
+except ImportError as e:
+    print(f"[WARN] Failed to import faiss: {e}")
+    FAISS_AVAILABLE = False
+    faiss = None
+
 
 app = FastAPI()
 
@@ -108,11 +116,11 @@ feature_extractor.eval()
 # LOAD FAISS & IMAGE PATHS
 # -----------------------------
 try:
-    if os.path.exists("faiss.index"):
+    if FAISS_AVAILABLE and os.path.exists("faiss.index"):
         faiss_index = faiss.read_index("faiss.index")
         print(f"[INFO] FAISS index loaded with {faiss_index.ntotal} items")
     else:
-        print("[WARN] faiss.index not found. Similarity search disabled.")
+        print("[WARN] faiss.index not found or FAISS not available. Similarity search disabled.")
         faiss_index = None
 except Exception as e:
     print(f"[WARN] Failed to load faiss.index: {e}")
